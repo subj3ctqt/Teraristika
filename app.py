@@ -186,20 +186,35 @@ with tab_god:
         pomak)
     dom_god = np.array(lok["mjesecne_temp"], dtype=float)
 
+    label_dom = f'🟢 {lokacija_ime} (tvoj dom)'
+    label_zivotinja = f'🔴 {profil["lokalitet"]} (pomak +{pomak} mj)'
     df = pd.DataFrame({
         "Mjesec": MJESECI,
-        f'📍 {lokacija_ime} (tvoj dom)': dom_god,
-        f'🦎 {profil["lokalitet"]} (pomak +{pomak} mj)': zivotinja_god,
+        label_dom: dom_god,
+        label_zivotinja: zivotinja_god,
     })
     df_long = df.melt("Mjesec", var_name="Linija", value_name="°C")
-    chart = (alt.Chart(df_long)
-             .mark_line(point=True)
-             .encode(
-                 x=alt.X("Mjesec", sort=MJESECI, title=None),  # Sij -> Pro
-                 y=alt.Y("°C", title="Temperatura (°C)"),
-                 color=alt.Color("Linija", title=None,
-                                 legend=alt.Legend(orient="bottom"))))
-    st.altair_chart(chart, use_container_width=True)
+
+    linije = (alt.Chart(df_long)
+              .mark_line(point=True)
+              .encode(
+                  x=alt.X("Mjesec", sort=MJESECI, title=None),  # Sij -> Pro
+                  y=alt.Y("°C", title="Temperatura (°C)"),
+                  color=alt.Color(
+                      "Linija", title=None,
+                      scale=alt.Scale(domain=[label_dom, label_zivotinja],
+                                      range=["#2ca02c", "#d62728"]),  # zeleno / crveno
+                      legend=alt.Legend(orient="bottom"))))
+
+    # Okomite oznake za prozor parenja
+    prozor = prozor_parenja(profil, pomak)
+    oznake = (alt.Chart(pd.DataFrame({"Mjesec": [MJESECI[i] for i in prozor]}))
+              .mark_rule(color="#e0a000", strokeDash=[6, 4], size=2)
+              .encode(x=alt.X("Mjesec", sort=MJESECI)))
+
+    st.altair_chart(oznake + linije, use_container_width=True)
+    st.caption("🟢 zeleno = tvoje temperature · 🔴 crveno = lokalitet vrste · "
+               "🟡 isprekidano = sezona parenja")
 
     # Live povratna informacija koliko se poklapaju
     pod = podudaranje(profil, lok, pomak)
