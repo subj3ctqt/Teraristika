@@ -4,7 +4,10 @@ Replikacija prirodnih uvjeta stanista u terariju (vidi DIZAJN.md).
 
 Pokretanje:  streamlit run app.py
 """
+import datetime
 import json
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 import altair as alt
@@ -21,6 +24,33 @@ def ucitaj_bazu():
     putanja = Path(__file__).parent / "data" / "profili.json"
     with open(putanja, encoding="utf-8") as f:
         return json.load(f)
+
+
+# ---------------------------------------------------------------- weather API (Open-Meteo)
+@st.cache_data(ttl=86400, show_spinner=False)
+def geokodiraj(grad):
+    """Grad -> lista mogućih lokacija (naziv, država, koordinate)."""
+    url = "https://geocoding-api.open-meteo.com/v1/search?" + urllib.parse.urlencode(
+        {"name": grad, "count": 5, "language": "hr", "format": "json"})
+    with urllib.request.urlopen(url, timeout=15) as r:
+        return json.load(r).get("results", [])
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def klima_mjesecno(lat, lon):
+    """12 mjesečnih prosjeka temperature (zadnjih 10 punih godina)."""
+    do_godine = datetime.date.today().year - 1
+    od_godine = do_godine - 9
+    url = "https://archive-api.open-meteo.com/v1/archive?" + urllib.parse.urlencode({
+        "latitude": lat, "longitude": lon,
+        "start_date": f"{od_godine}-01-01", "end_date": f"{do_godine}-12-31",
+        "daily": "temperature_2m_mean", "timezone": "auto"})
+    with urllib.request.urlopen(url, timeout=40) as r:
+        d = json.load(r)["daily"]
+    df = pd.DataFrame({"dan": pd.to_datetime(d["time"]),
+                       "t": d["temperature_2m_mean"]}).dropna()
+    po_mjesecu = df.groupby(df["dan"].dt.month)["t"].mean()
+    return [round(float(po_mjesecu.get(m, np.nan)), 1) for m in range(1, 13)]
 
 
 # ---------------------------------------------------------------- racun
@@ -88,8 +118,34 @@ if "teraji" not in st.session_state:
 # ============================ SIDEBAR ============================
 with st.sidebar:
     st.header("🦎 Moji teraji")
-    lokacija_ime = st.selectbox("Moja lokacija", list(baza["korisnik_lokacije"]))
-    lok = baza["korisnik_lokacije"][lokacija_ime]
+
+    st.markdown("**📍 Moja lokacija**")
+    grad = st.text_input("Upiši grad", "Split")
+    lokacija_ime, lok = None, None
+    try:
+        rezultati = geokodiraj(grad)
+        if rezultati:
+            opcije = [", ".join(x for x in (r["name"], r.get("admin1"),
+                                            r.get("country")) if x)
+                      for r in rezultati]
+            i = st.selectbox("Potvrdi lokaciju", range(len(rezultati)),
+                             format_func=lambda i: opcije[i])
+            r = rezultati[i]
+            with st.spinner("Dohvaćam klimu (10 g. prosjek)…"):
+                mjesecne = klima_mjesecno(r["latitude"], r["longitude"])
+            if np.isnan(np.array(mjesecne, dtype=float)).any():
+                raise ValueError("nepotpuni podaci")
+            lokacija_ime, lok = r["name"], {"mjesecne_temp": mjesecne}
+        else:
+            st.warning("Grad nije pronađen.")
+    except Exception as e:
+        st.warning(f"Weather API nedostupan ({e}); koristim spremljenu lokaciju.")
+
+    if lok is None:  # fallback na spremljene podatke
+        lokacija_ime = list(baza["korisnik_lokacije"])[0]
+        lok = baza["korisnik_lokacije"][lokacija_ime]
+
+    st.divider()
 
     imena = [t["ime"] for t in st.session_state.teraji]
     odabran = st.radio("Odaberi teraj", range(len(imena)),
@@ -196,7 +252,7 @@ with tab_god:
     df_long = df.melt("Mjesec", var_name="Linija", value_name="°C")
 
     linije = (alt.Chart(df_long)
-              .mark_line(point=True)
+              .mark_line()
               .encode(
                   x=alt.X("Mjesec", sort=MJESECI, title=None),  # Sij -> Pro
                   y=alt.Y("°C", title="Temperatura (°C)"),
