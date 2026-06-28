@@ -116,25 +116,28 @@ def trazi_grad(upit):
     return out
 
 
-def odaberi_grad(label, zadani, kljuc, fb_mjesecne):
-    """Combobox: upiši grad -> živi padajući izbornik -> klima iz API-ja."""
-    pocetne = trazi_grad(zadani)
-    izbor = st_searchbox(
-        trazi_grad, placeholder=label, label=label,
-        default=pocetne[0][1] if pocetne else None,
-        default_options=pocetne, key=f"sb_{kljuc}")
+def grad_searchbox(label, kljuc):
+    """Prazan combobox za odabir grada. Vraća {ime,lat,lon} ili None."""
+    izbor = st_searchbox(trazi_grad, placeholder=label, label=label, key=kljuc)
     if izbor:
         lat, lon, ime = izbor
-        try:
-            with st.spinner("Dohvaćam klimu…"):
-                mj = klima_mjesecno(lat, lon)
-                dn = klima_dnevno(lat, lon)
-            if not np.isnan(np.array(mj, dtype=float)).any():
-                return {"ime": ime, "grad": ime, "mjesecne": mj, "dnevne": dn}
-        except Exception as e:
-            st.warning(f"API nedostupan ({e}).")
-    return {"ime": zadani or "—", "grad": zadani, "mjesecne": fb_mjesecne,
-            "dnevne": dnevni_iz_mjesecnih(fb_mjesecne)}
+        return {"ime": ime, "lat": lat, "lon": lon}
+    return None
+
+
+def klima_lokacije(loc):
+    """Iz spremljene lokacije {ime,lat,lon} dohvati klimu. None ako lokacija nije postavljena."""
+    if not loc:
+        return None
+    try:
+        with st.spinner("Dohvaćam klimu…"):
+            mj = klima_mjesecno(loc["lat"], loc["lon"])
+            dn = klima_dnevno(loc["lat"], loc["lon"])
+        if not np.isnan(np.array(mj, dtype=float)).any():
+            return {"ime": loc["ime"], "mjesecne": mj, "dnevne": dn}
+    except Exception as e:
+        st.warning(f"API nedostupan ({e}).")
+    return {"ime": loc["ime"], "mjesecne": FB, "dnevne": dnevni_iz_mjesecnih(FB)}
 
 
 # ---------------------------------------------------------------- UI
@@ -143,18 +146,17 @@ FB = [8, 8, 11, 14, 18, 22, 25, 25, 21, 16, 12, 9]  # offline fallback (Split)
 
 if "terariji" not in st.session_state:
     st.session_state.terariji = [
-        {"ime": "Terarij 1", "vrsta": "Morelia viridis (Biak)", "grad": "Biak", "pomak": 0},
-        {"ime": "Terarij 2", "vrsta": "Morelia spilota", "grad": "Sydney", "pomak": 6},
+        {"ime": "Terarij 1", "vrsta": "Morelia viridis (Biak)",
+         "moj": {"ime": "Split", "lat": 43.51, "lon": 16.44},
+         "lok": {"ime": "Biak", "lat": -1.18, "lon": 136.08}, "pomak": 0},
+        {"ime": "Terarij 2", "vrsta": "Morelia spilota",
+         "moj": {"ime": "Split", "lat": 43.51, "lon": 16.44},
+         "lok": {"ime": "Sydney", "lat": -33.87, "lon": 151.21}, "pomak": 6},
     ]
 
 # ============================ SIDEBAR ============================
 with st.sidebar:
     st.header("🦎 Moji terariji")
-
-    st.markdown("**📍 Moja lokacija (🟢 zeleno)**")
-    moja = odaberi_grad("Upiši svoj grad", "Split", "moj", FB)
-
-    st.divider()
 
     imena = [t["ime"] for t in st.session_state.terariji]
     odabran = st.radio("Odaberi terarij", range(len(imena)),
@@ -162,24 +164,43 @@ with st.sidebar:
     terarij = st.session_state.terariji[odabran]
 
     with st.expander("➕ Dodaj terarij"):
-        novo_ime = st.text_input("Naziv", "Novi terarij")
-        nova_vrsta = st.text_input("Vrsta")
-        if st.button("Spremi") and novo_ime.strip():
+        novo_ime = st.text_input("Naziv", "")
+        nova_vrsta = st.text_input("Vrsta", "")
+        st.caption("📍 Lokacije:")
+        novi_moj = grad_searchbox("Moja lokacija", "add_moj")
+        novi_lok = grad_searchbox("Grad lokaliteta", "add_lok")
+        if st.button("Spremi terarij") and novo_ime.strip():
             st.session_state.terariji.append(
-                {"ime": novo_ime, "vrsta": nova_vrsta, "grad": "", "pomak": 0})
+                {"ime": novo_ime, "vrsta": nova_vrsta,
+                 "moj": novi_moj, "lok": novi_lok, "pomak": 0})
             st.rerun()
 
-    st.divider()
-
-    st.markdown("**🔴 Lokalitet vrste (crveno)**")
-    lokalitet = odaberi_grad("Upiši grad lokaliteta", terarij.get("grad", ""),
-                             f"lok_{odabran}", FB)
-    terarij["grad"] = lokalitet["grad"]
+    with st.expander("⚙️ Postavke ovog terarija"):
+        terarij["ime"] = st.text_input("Naziv", terarij["ime"], key=f"ime_{odabran}")
+        terarij["vrsta"] = st.text_input("Vrsta", terarij.get("vrsta", ""),
+                                         key=f"vrsta_{odabran}")
+        st.caption(f'🟢 Moja lokacija: **{terarij["moj"]["ime"] if terarij.get("moj") else "—"}**')
+        promjena_moj = grad_searchbox("Promijeni moju lokaciju", f"edit_moj_{odabran}")
+        if promjena_moj:
+            terarij["moj"] = promjena_moj
+        st.caption(f'🔴 Lokalitet: **{terarij["lok"]["ime"] if terarij.get("lok") else "—"}**')
+        promjena_lok = grad_searchbox("Promijeni grad lokaliteta", f"edit_lok_{odabran}")
+        if promjena_lok:
+            terarij["lok"] = promjena_lok
+        if st.button("🗑 Obriši terarij") and len(st.session_state.terariji) > 1:
+            st.session_state.terariji.pop(odabran)
+            st.rerun()
 
 # ============================ GLAVNI DIO ============================
 st.title(terarij["ime"])
 if terarij.get("vrsta"):
     st.caption(terarij["vrsta"])
+
+moja = klima_lokacije(terarij.get("moj"))
+lokalitet = klima_lokacije(terarij.get("lok"))
+if moja is None or lokalitet is None:
+    st.info("ℹ️ Postavi **obje lokacije** u „⚙️ Postavke ovog terarija”.")
+    st.stop()
 
 # ---- Hint za sezonski pomak ----
 hint = najbolji_pomak(lokalitet["mjesecne"], moja["mjesecne"])
