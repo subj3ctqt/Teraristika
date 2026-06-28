@@ -7,6 +7,7 @@ Pokretanje:  streamlit run app.py
 import json
 from pathlib import Path
 
+import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -147,7 +148,8 @@ with tab_dan:
     plan = dnevna_krivulja(topla, noc)
     stvarno = plan + rng.normal(0, 0.6, 24)
     df = pd.DataFrame({"Plan (cilj)": plan, "Stvarno (demo senzor)": stvarno},
-                      index=[f"{h}:00" for h in range(24)])
+                      index=range(24))
+    df.index.name = "Sat"
     st.line_chart(df)
     st.caption("Plava = ciljna krivulja iz profila · narančasta = (simulirano) očitanje senzora.")
 
@@ -165,11 +167,20 @@ with tab_god:
         pomak)
     dom_god = np.array(lok["mjesecne_temp"], dtype=float)
 
-    df = pd.DataFrame(
-        {f'📍 {lokacija_ime} (tvoj dom)': dom_god,
-         f'🦎 {profil["lokalitet"]} (pomak +{pomak} mj)': zivotinja_god},
-        index=MJESECI)
-    st.line_chart(df)
+    df = pd.DataFrame({
+        "Mjesec": MJESECI,
+        f'📍 {lokacija_ime} (tvoj dom)': dom_god,
+        f'🦎 {profil["lokalitet"]} (pomak +{pomak} mj)': zivotinja_god,
+    })
+    df_long = df.melt("Mjesec", var_name="Linija", value_name="°C")
+    chart = (alt.Chart(df_long)
+             .mark_line(point=True)
+             .encode(
+                 x=alt.X("Mjesec", sort=MJESECI, title=None),  # Sij -> Pro
+                 y=alt.Y("°C", title="Temperatura (°C)"),
+                 color=alt.Color("Linija", title=None,
+                                 legend=alt.Legend(orient="bottom"))))
+    st.altair_chart(chart, use_container_width=True)
 
     # Live povratna informacija koliko se poklapaju
     pod = podudaranje(profil, lok, pomak)
