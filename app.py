@@ -147,10 +147,29 @@ with tab_dan:
     noc = (profil["temp_noc"][0] + profil["temp_noc"][1]) / 2
     plan = dnevna_krivulja(topla, noc)
     stvarno = plan + rng.normal(0, 0.6, 24)
-    df = pd.DataFrame({"Plan (cilj)": plan, "Stvarno (demo senzor)": stvarno},
-                      index=range(24))
-    df.index.name = "Sat"
-    st.line_chart(df)
+
+    # Vremenska os 00:00 -> 23:59 (zadnja točka zatvara dan, krivulja je ciklična)
+    base = pd.Timestamp("2024-01-01")
+    vrijeme = [base + pd.Timedelta(hours=h) for h in range(24)] + \
+              [base + pd.Timedelta(hours=23, minutes=59)]
+    plan_f = np.append(plan, plan[0])
+    stvarno_f = np.append(stvarno, stvarno[0])
+
+    df = pd.DataFrame({"Vrijeme": vrijeme,
+                       "Plan (cilj)": plan_f,
+                       "Stvarno (demo senzor)": stvarno_f})
+    df_long = df.melt("Vrijeme", var_name="Linija", value_name="°C")
+    chart = (alt.Chart(df_long)
+             .mark_line()
+             .encode(
+                 x=alt.X("Vrijeme:T", title=None,
+                         axis=alt.Axis(format="%H:%M", tickCount=12),
+                         scale=alt.Scale(domain=[base,
+                                                 base + pd.Timedelta(hours=23, minutes=59)])),
+                 y=alt.Y("°C", title="Temperatura (°C)"),
+                 color=alt.Color("Linija", title=None,
+                                 legend=alt.Legend(orient="bottom"))))
+    st.altair_chart(chart, use_container_width=True)
     st.caption("Plava = ciljna krivulja iz profila · narančasta = (simulirano) očitanje senzora.")
 
 with tab_god:
