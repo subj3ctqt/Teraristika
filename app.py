@@ -170,13 +170,21 @@ with st.sidebar:
         novi_moj = grad_searchbox("Moja lokacija", "add_moj")
         novi_lok = grad_searchbox("Grad lokaliteta", "add_lok")
         if st.button("Spremi terarij") and novo_ime.strip():
-            st.session_state.terariji.append(
-                {"ime": novo_ime, "vrsta": nova_vrsta,
-                 "moj": novi_moj, "lok": novi_lok, "pomak": 0})
-            st.rerun()
+            if novo_ime.strip() in [t["ime"] for t in st.session_state.terariji]:
+                st.error(f"Terarij „{novo_ime.strip()}” već postoji — odaberi drugo ime.")
+            else:
+                st.session_state.terariji.append(
+                    {"ime": novo_ime.strip(), "vrsta": nova_vrsta,
+                     "moj": novi_moj, "lok": novi_lok, "pomak": 0})
+                st.rerun()
 
     with st.expander("⚙️ Postavke ovog terarija"):
-        terarij["ime"] = st.text_input("Naziv", terarij["ime"], key=f"ime_{odabran}")
+        novo = st.text_input("Naziv", terarij["ime"], key=f"ime_{odabran}").strip()
+        druga_imena = [t["ime"] for j, t in enumerate(st.session_state.terariji) if j != odabran]
+        if novo and novo in druga_imena:
+            st.error(f"Već postoji terarij „{novo}” — ime mora biti jedinstveno.")
+        elif novo:
+            terarij["ime"] = novo
         terarij["vrsta"] = st.text_input("Vrsta", terarij.get("vrsta", ""),
                                          key=f"vrsta_{odabran}")
         st.caption(f'🟢 Moja lokacija: **{terarij["moj"]["ime"] if terarij.get("moj") else "—"}**')
