@@ -16,7 +16,7 @@ from streamlit_searchbox import st_searchbox
 
 MJESECI = ["Sij", "Velj", "Ozu", "Tra", "Svi", "Lip",
            "Srp", "Kol", "Ruj", "Lis", "Stu", "Pro"]
-ZELENA, CRVENA, ZUTA = "#2ca02c", "#d62728", "#e0a000"
+ZELENA, CRVENA = "#2ca02c", "#d62728"
 
 
 # ---------------------------------------------------------------- weather API (Open-Meteo)
@@ -91,15 +91,6 @@ def podudaranje(crveno, zeleno, pomak):
     return max(0.0, np.corrcoef(z, np.roll(c, pomak))[0, 1]) * 100
 
 
-def prozor_parenja(crveno_pomaknuto):
-    """Prozor parenja: zagrijavanje nakon najhladnijeg mjeseca (umjerena klima)."""
-    arr = np.array(crveno_pomaknuto, dtype=float)
-    if arr.max() - arr.min() < 3:
-        return []  # ravna/ekvatorska klima
-    najhladniji = int(np.argmin(arr))
-    return [(najhladniji + k) % 12 for k in (2, 3, 4)]
-
-
 # ---------------------------------------------------------------- odabir grada (autocomplete)
 def trazi_grad(upit):
     """Live pretraga gradova (za st_searchbox): vraća [(opis, (lat, lon, ime)), ...]."""
@@ -159,11 +150,15 @@ with st.sidebar:
     st.header("🦎 Moji terariji")
 
     imena = [t["ime"] for t in st.session_state.terariji]
-    odabran = st.radio("Odaberi terarij", range(len(imena)),
-                       format_func=lambda i: imena[i])
-    terarij = st.session_state.terariji[odabran]
+    if imena:
+        odabran = st.radio("Odaberi terarij", range(len(imena)),
+                           format_func=lambda i: imena[i])
+        terarij = st.session_state.terariji[odabran]
+    else:
+        st.info("Nema terarija — dodaj prvi u „➕ Dodaj terarij”.")
+        odabran, terarij = None, None
 
-    with st.expander("➕ Dodaj terarij"):
+    with st.expander("➕ Dodaj terarij", expanded=not imena):
         novo_ime = st.text_input("Naziv", "")
         nova_vrsta = st.text_input("Vrsta", "")
         st.caption("📍 Lokacije:")
@@ -178,28 +173,34 @@ with st.sidebar:
                      "moj": novi_moj, "lok": novi_lok, "pomak": 0})
                 st.rerun()
 
-    with st.expander("⚙️ Postavke ovog terarija"):
-        novo = st.text_input("Naziv", terarij["ime"], key=f"ime_{odabran}").strip()
-        druga_imena = [t["ime"] for j, t in enumerate(st.session_state.terariji) if j != odabran]
-        if novo and novo in druga_imena:
-            st.error(f"Već postoji terarij „{novo}” — ime mora biti jedinstveno.")
-        elif novo:
-            terarij["ime"] = novo
-        terarij["vrsta"] = st.text_input("Vrsta", terarij.get("vrsta", ""),
-                                         key=f"vrsta_{odabran}")
-        st.caption(f'🟢 Moja lokacija: **{terarij["moj"]["ime"] if terarij.get("moj") else "—"}**')
-        promjena_moj = grad_searchbox("Promijeni moju lokaciju", f"edit_moj_{odabran}")
-        if promjena_moj:
-            terarij["moj"] = promjena_moj
-        st.caption(f'🔴 Lokalitet: **{terarij["lok"]["ime"] if terarij.get("lok") else "—"}**')
-        promjena_lok = grad_searchbox("Promijeni grad lokaliteta", f"edit_lok_{odabran}")
-        if promjena_lok:
-            terarij["lok"] = promjena_lok
-        if st.button("🗑 Obriši terarij") and len(st.session_state.terariji) > 1:
-            st.session_state.terariji.pop(odabran)
-            st.rerun()
+    if terarij is not None:
+        with st.expander("⚙️ Postavke ovog terarija"):
+            novo = st.text_input("Naziv", terarij["ime"], key=f"ime_{odabran}").strip()
+            druga_imena = [t["ime"] for j, t in enumerate(st.session_state.terariji) if j != odabran]
+            if novo and novo in druga_imena:
+                st.error(f"Već postoji terarij „{novo}” — ime mora biti jedinstveno.")
+            elif novo:
+                terarij["ime"] = novo
+            terarij["vrsta"] = st.text_input("Vrsta", terarij.get("vrsta", ""),
+                                             key=f"vrsta_{odabran}")
+            st.caption(f'🟢 Moja lokacija: **{terarij["moj"]["ime"] if terarij.get("moj") else "—"}**')
+            promjena_moj = grad_searchbox("Promijeni moju lokaciju", f"edit_moj_{odabran}")
+            if promjena_moj:
+                terarij["moj"] = promjena_moj
+            st.caption(f'🔴 Lokalitet: **{terarij["lok"]["ime"] if terarij.get("lok") else "—"}**')
+            promjena_lok = grad_searchbox("Promijeni grad lokaliteta", f"edit_lok_{odabran}")
+            if promjena_lok:
+                terarij["lok"] = promjena_lok
+            if st.button("🗑 Obriši terarij"):
+                st.session_state.terariji.pop(odabran)
+                st.rerun()
 
 # ============================ GLAVNI DIO ============================
+if terarij is None:
+    st.title("🦎 Termostat za terarij")
+    st.info("ℹ️ Nemaš nijedan terarij. Dodaj prvi u „➕ Dodaj terarij” (lijevo).")
+    st.stop()
+
 st.title(terarij["ime"])
 if terarij.get("vrsta"):
     st.caption(terarij["vrsta"])
@@ -266,15 +267,7 @@ with tab_god:
                                                   range=[ZELENA, CRVENA]),
                                   legend=alt.Legend(orient="bottom"))))
 
-    prozor = prozor_parenja(red_god)
-    oznake = (alt.Chart(pd.DataFrame({"Mjesec": [MJESECI[i] for i in prozor]}))
-              .mark_rule(color=ZUTA, strokeDash=[6, 4], size=2)
-              .encode(x=alt.X("Mjesec", sort=MJESECI)))
-
-    st.altair_chart(oznake + linije, use_container_width=True)
+    st.altair_chart(linije, use_container_width=True)
 
     pod = podudaranje(lokalitet["mjesecne"], moja["mjesecne"], pomak)
-    c1, c2 = st.columns([1, 2])
-    c1.metric("Podudaranje", "—" if pod is None else f"{pod:.0f} %")
-    if prozor:
-        c2.caption(f"🟡 Procijenjena sezona parenja: **{', '.join(MJESECI[i] for i in prozor)}**")
+    st.metric("Podudaranje", "—" if pod is None else f"{pod:.0f} %")
