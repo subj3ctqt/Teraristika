@@ -101,29 +101,33 @@ def prozor_parenja(crveno_pomaknuto):
 
 # ---------------------------------------------------------------- odabir grada (autocomplete)
 def odaberi_grad(label, zadani, kljuc, fb_mjesecne):
-    """Upiši grad -> dropdown ponuđenih -> klima iz API-ja. Uvijek vrati podatke."""
+    """Upiši grad -> klikni točan iz ponude -> klima iz API-ja. Uvijek vrati podatke."""
     grad = st.text_input(label, zadani, key=f"upit_{kljuc}")
+    r = None
     if grad.strip():
         try:
             rez = geokodiraj(grad)
             if rez:
+                opis = [", ".join(x for x in (g["name"], g.get("admin1"),
+                                              g.get("country")) if x) for g in rez]
                 if len(rez) == 1:
                     r = rez[0]
-                    st.caption(f'📍 {r["name"]}, {r.get("country", "")}')
+                    st.caption(f"📍 {opis[0]}")
                 else:
-                    opis = [", ".join(x for x in (r["name"], r.get("admin1"),
-                                                  r.get("country")) if x) for r in rez]
-                    i = st.selectbox("Odaberi", range(len(rez)), key=f"sel_{kljuc}",
-                                     format_func=lambda i: opis[i],
-                                     label_visibility="collapsed")
+                    i = st.radio("Odaberi grad:", range(len(rez)), key=f"sel_{kljuc}",
+                                 format_func=lambda i: opis[i])
                     r = rez[i]
-                with st.spinner("Dohvaćam klimu…"):
-                    mj = klima_mjesecno(r["latitude"], r["longitude"])
-                    dn = klima_dnevno(r["latitude"], r["longitude"])
-                if not np.isnan(np.array(mj, dtype=float)).any():
-                    return {"ime": r["name"], "grad": grad, "mjesecne": mj, "dnevne": dn}
             else:
                 st.caption("Nema rezultata.")
+        except Exception as e:
+            st.warning(f"API nedostupan ({e}).")
+    if r is not None:
+        try:
+            with st.spinner("Dohvaćam klimu…"):
+                mj = klima_mjesecno(r["latitude"], r["longitude"])
+                dn = klima_dnevno(r["latitude"], r["longitude"])
+            if not np.isnan(np.array(mj, dtype=float)).any():
+                return {"ime": r["name"], "grad": grad, "mjesecne": mj, "dnevne": dn}
         except Exception as e:
             st.warning(f"API nedostupan ({e}).")
     return {"ime": zadani, "grad": grad, "mjesecne": fb_mjesecne,
