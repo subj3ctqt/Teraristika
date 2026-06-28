@@ -12,6 +12,7 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+from streamlit_searchbox import st_searchbox
 
 MJESECI = ["Sij", "Velj", "Ozu", "Tra", "Svi", "Lip",
            "Srp", "Kol", "Ruj", "Lis", "Stu", "Pro"]
@@ -100,37 +101,39 @@ def prozor_parenja(crveno_pomaknuto):
 
 
 # ---------------------------------------------------------------- odabir grada (autocomplete)
+def trazi_grad(upit):
+    """Live pretraga gradova (za st_searchbox): vraća [(opis, (lat, lon, ime)), ...]."""
+    if not upit or not upit.strip():
+        return []
+    try:
+        rez = geokodiraj(upit)
+    except Exception:
+        return []
+    out = []
+    for g in rez:
+        opis = ", ".join(x for x in (g["name"], g.get("admin1"), g.get("country")) if x)
+        out.append((opis, (g["latitude"], g["longitude"], g["name"])))
+    return out
+
+
 def odaberi_grad(label, zadani, kljuc, fb_mjesecne):
-    """Upiši grad -> klikni točan iz ponude -> klima iz API-ja. Uvijek vrati podatke."""
-    grad = st.text_input(label, zadani, key=f"upit_{kljuc}")
-    r = None
-    if grad.strip():
-        try:
-            rez = geokodiraj(grad)
-            if rez:
-                opis = [", ".join(x for x in (g["name"], g.get("admin1"),
-                                              g.get("country")) if x) for g in rez]
-                if len(rez) == 1:
-                    r = rez[0]
-                    st.caption(f"📍 {opis[0]}")
-                else:
-                    i = st.radio("Odaberi grad:", range(len(rez)), key=f"sel_{kljuc}",
-                                 format_func=lambda i: opis[i])
-                    r = rez[i]
-            else:
-                st.caption("Nema rezultata.")
-        except Exception as e:
-            st.warning(f"API nedostupan ({e}).")
-    if r is not None:
+    """Combobox: upiši grad -> živi padajući izbornik -> klima iz API-ja."""
+    pocetne = trazi_grad(zadani)
+    izbor = st_searchbox(
+        trazi_grad, placeholder=label, label=label,
+        default=pocetne[0][1] if pocetne else None,
+        default_options=pocetne, key=f"sb_{kljuc}")
+    if izbor:
+        lat, lon, ime = izbor
         try:
             with st.spinner("Dohvaćam klimu…"):
-                mj = klima_mjesecno(r["latitude"], r["longitude"])
-                dn = klima_dnevno(r["latitude"], r["longitude"])
+                mj = klima_mjesecno(lat, lon)
+                dn = klima_dnevno(lat, lon)
             if not np.isnan(np.array(mj, dtype=float)).any():
-                return {"ime": r["name"], "grad": grad, "mjesecne": mj, "dnevne": dn}
+                return {"ime": ime, "grad": ime, "mjesecne": mj, "dnevne": dn}
         except Exception as e:
             st.warning(f"API nedostupan ({e}).")
-    return {"ime": zadani, "grad": grad, "mjesecne": fb_mjesecne,
+    return {"ime": zadani or "—", "grad": zadani, "mjesecne": fb_mjesecne,
             "dnevne": dnevni_iz_mjesecnih(fb_mjesecne)}
 
 
