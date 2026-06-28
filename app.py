@@ -37,15 +37,27 @@ def godisnja_krivulja(mjesecne_vrijednosti, pomak_mjeseci):
     return np.roll(arr, pomak_mjeseci)
 
 
-def predlozi_pomak(profil, lok):
-    """Hint: koliko mjeseci pomaknuti da se 'njihova zima' poklopi s lokalnom."""
-    noc = np.array(profil["mjesecne_temp_noc"])
-    amplituda = noc.max() - noc.min()
+def najbolji_pomak(profil, lok):
+    """Pomak (0-11 mj) pri kojem se životinjina krivulja najbolje poklopi s lokalnom."""
+    zivotinja = (np.array(profil["mjesecne_temp_dan"], dtype=float)
+                 + np.array(profil["mjesecne_temp_noc"], dtype=float)) / 2
+    dom = np.array(lok["mjesecne_temp"], dtype=float)
+    amplituda = zivotinja.max() - zivotinja.min()
     if amplituda < 3:
         return None, amplituda  # ravna klima -> pomak nije bitan
-    najhladniji_lokalitet = int(np.argmin(noc)) + 1          # mjesec 1-12
-    pomak = (lok["najhladniji_mjesec"] - najhladniji_lokalitet) % 12
-    return pomak, amplituda
+    korelacije = [np.corrcoef(dom, np.roll(zivotinja, p))[0, 1] for p in range(12)]
+    return int(np.argmax(korelacije)), amplituda
+
+
+def podudaranje(profil, lok, pomak):
+    """Koliko se trenutno poklapaju (0-100 %) — korelacija oblika krivulja."""
+    zivotinja = (np.array(profil["mjesecne_temp_dan"], dtype=float)
+                 + np.array(profil["mjesecne_temp_noc"], dtype=float)) / 2
+    dom = np.array(lok["mjesecne_temp"], dtype=float)
+    if zivotinja.std() < 0.5 or dom.std() < 0.5:
+        return None
+    r = np.corrcoef(dom, np.roll(zivotinja, pomak))[0, 1]
+    return max(0.0, r) * 100
 
 
 def prozor_parenja(profil, pomak):
@@ -112,7 +124,7 @@ c3.metric("Hladni kraj / noć",
 c4.metric("Vlažnost", f'{profil["vlaznost"][0]}–{profil["vlaznost"][1]} %')
 
 # ---- Sezonski pomak (hint) ----
-pomak_hint, amplituda = predlozi_pomak(profil, lok)
+pomak_hint, amplituda = najbolji_pomak(profil, lok)
 if pomak_hint is None:
     st.info(f"🌴 Ravna klima (godišnja amplituda ~{amplituda:.0f} °C) — "
             f"sezonski pomak ovdje nije bitan.")
@@ -120,9 +132,9 @@ elif pomak_hint == teraj["pomak"]:
     st.success(f"✅ Sezonski pomak poravnat (+{teraj['pomak']} mj). "
                f"Njihova zima se poklapa s tvojom.")
 else:
-    st.warning(f"💡 Prijedlog: postavi pomak na **+{pomak_hint} mjeseci** da se "
-               f'„njihova zima” poklopi s tvojom u {lokacija_ime}. '
-               f"Trenutno: +{teraj['pomak']} mj. (Promijeni u „Napredno”.)")
+    st.warning(f"💡 Najbolje poklapanje je na **+{pomak_hint} mjeseci** "
+               f'(da „njihova zima” padne na tvoju u {lokacija_ime}). '
+               f"Trenutno: +{teraj['pomak']} mj. Klizač je u kartici „Godišnja krivulja”.")
 
 # ---- Grafovi: PLAN vs STVARNO ----
 rng = np.random.default_rng(odabran)  # demo "stvarno" = plan + sum
@@ -140,14 +152,37 @@ with tab_dan:
     st.caption("Plava = ciljna krivulja iz profila · narančasta = (simulirano) očitanje senzora.")
 
 with tab_god:
-    pomak = teraj["pomak"]
-    dan = godisnja_krivulja(profil["mjesecne_temp_dan"], pomak)
-    noc_god = godisnja_krivulja(profil["mjesecne_temp_noc"], pomak)
-    stvarno_god = dan + rng.normal(0, 0.8, 12)
+    st.markdown("**Pomakni životinjinu krivulju preko krivulje tvoje lokacije "
+                "dok se ne poklope (najveće podudaranje).**")
+
+    # Klizač DIREKTNO pomiče krivulju (Streamlit sam osvježi graf u istom prolazu)
+    pomak = st.slider("🔀 Sezonski pomak (mjeseci)", 0, 11, teraj["pomak"],
+                      key=f"pomak_{odabran}")
+    teraj["pomak"] = pomak
+
+    zivotinja_god = godisnja_krivulja(
+        (np.array(profil["mjesecne_temp_dan"]) + np.array(profil["mjesecne_temp_noc"])) / 2,
+        pomak)
+    dom_god = np.array(lok["mjesecne_temp"], dtype=float)
+
     df = pd.DataFrame(
-        {"Plan dan": dan, "Plan noć": noc_god, "Stvarno (demo)": stvarno_god},
+        {f'📍 {lokacija_ime} (tvoj dom)': dom_god,
+         f'🦎 {profil["lokalitet"]} (pomak +{pomak} mj)': zivotinja_god},
         index=MJESECI)
     st.line_chart(df)
+
+    # Live povratna informacija koliko se poklapaju
+    pod = podudaranje(profil, lok, pomak)
+    cc1, cc2 = st.columns([1, 2])
+    if pod is None:
+        cc1.metric("Podudaranje", "—")
+        cc2.caption("Ravna klima — poravnanje nije bitno.")
+    else:
+        cc1.metric("Podudaranje", f"{pod:.0f} %")
+        if pomak_hint is not None and pomak == pomak_hint:
+            cc2.success("✅ Najbolje poklapanje — zime su poravnate.")
+        elif pomak_hint is not None:
+            cc2.caption(f"Najveće podudaranje je na **+{pomak_hint} mj**.")
 
     prozor = prozor_parenja(profil, pomak)
     mj = ", ".join(MJESECI[i] for i in prozor)
@@ -173,12 +208,6 @@ else:
 
 # ---- C. NAPREDNO (fino podešavanje) ----
 with st.expander("⚙️ Napredno — fino podešavanje"):
-    novi_pomak = st.slider("Sezonski pomak (mjeseci)", 0, 11, teraj["pomak"])
-    if novi_pomak != teraj["pomak"]:
-        teraj["pomak"] = novi_pomak
-        st.rerun()
-
-    st.divider()
     st.markdown("**Senzori** (za sada neaktivno — Faza 2):")
     s1, s2, s3 = st.columns(3)
     s1.selectbox("Temperatura", ["Ručno", "Senzor A", "Senzor B"], disabled=True)

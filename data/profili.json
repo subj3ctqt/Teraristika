@@ -2,9 +2,9 @@
   "_napomena": "Baza profila lokaliteta. Dodaj novu vrstu tako da kopiraš jedan blok u 'profili' i izmijeniš brojeve. Temperature su u Celzijevima, mjeseci 1-12 (sij-pro).",
 
   "korisnik_lokacije": {
-    "Split": { "najhladniji_mjesec": 1, "najtopliji_mjesec": 7 },
-    "Zagreb": { "najhladniji_mjesec": 1, "najtopliji_mjesec": 7 },
-    "Rijeka": { "najhladniji_mjesec": 1, "najtopliji_mjesec": 7 }
+    "Split": { "mjesecne_temp": [8, 8, 11, 14, 18, 22, 25, 25, 21, 16, 12, 9] },
+    "Zagreb": { "mjesecne_temp": [1, 3, 8, 12, 17, 20, 23, 22, 17, 12, 6, 2] },
+    "Rijeka": { "mjesecne_temp": [6, 6, 9, 13, 17, 21, 24, 24, 20, 15, 11, 7] }
   },
 
   "profili": [
