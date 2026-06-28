@@ -1,0 +1,44 @@
+{
+  "_napomena": "Baza profila lokaliteta. Dodaj novu vrstu tako da kopiraš jedan blok u 'profili' i izmijeniš brojeve. Temperature su u Celzijevima, mjeseci 1-12 (sij-pro).",
+
+  "korisnik_lokacije": {
+    "Split": { "najhladniji_mjesec": 1, "najtopliji_mjesec": 7 },
+    "Zagreb": { "najhladniji_mjesec": 1, "najtopliji_mjesec": 7 },
+    "Rijeka": { "najhladniji_mjesec": 1, "najtopliji_mjesec": 7 }
+  },
+
+  "profili": [
+    {
+      "vrsta": "Morelia viridis",
+      "lokalitet": "Biak",
+      "geo_sirina": -1.18,
+      "tip_okidaca": "ekvatorski",
+      "fotoperiod_min_h": 12.0,
+      "fotoperiod_max_h": 12.2,
+      "temp_topla_tocka_dan": [31, 32],
+      "temp_hladni_kraj_dan": [27, 28],
+      "temp_noc": [23, 24],
+      "vlaznost": [77, 100],
+      "mjesecne_temp_dan": [29, 29, 29, 30, 30, 29, 29, 29, 29, 30, 30, 30],
+      "mjesecne_temp_noc": [24, 24, 24, 25, 25, 24, 24, 24, 24, 24, 25, 25],
+      "kisni_mjeseci": [3, 6],
+      "napomene": "Ekvatorska vrsta - temperatura gotovo ravna cijele godine. Okidac parenja je kisna sezona + tlak, NE hladjenje."
+    },
+    {
+      "vrsta": "Morelia spilota spilota",
+      "lokalitet": "Diamond (Sydney)",
+      "geo_sirina": -33.9,
+      "tip_okidaca": "umjereni",
+      "fotoperiod_min_h": 9.9,
+      "fotoperiod_max_h": 14.4,
+      "temp_topla_tocka_dan": [30, 32],
+      "temp_hladni_kraj_dan": [24, 26],
+      "temp_noc": [18, 20],
+      "vlaznost": [55, 80],
+      "mjesecne_temp_dan": [27, 26, 25, 22, 19, 17, 17, 18, 21, 23, 24, 26],
+      "mjesecne_temp_noc": [19, 19, 18, 14, 11, 9, 8, 9, 11, 14, 16, 18],
+      "kisni_mjeseci": [2],
+      "napomene": "Umjerena vrsta s pravom zimom. Zimsko mirovanje (brumacija) i proljetno zagrijavanje okidaju parenje. Juzna hemisfera - najhladnije srpanj."
+    }
+  ]
+}

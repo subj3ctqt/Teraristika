@@ -1,0 +1,18 @@
+# Streamlit secrets (lozinke, connection stringovi) — NIKAD na GitHub
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Lokalna baza (SQLite) ako se kasnije koristi
+*.sqlite
+*.db
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
