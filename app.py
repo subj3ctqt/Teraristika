@@ -47,20 +47,19 @@ def klima_mjesecno(lat, lon):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def klima_dnevno(lat, lon):
-    """Prosječni dnevni hod temperature (24 vrijednosti, prosjek zadnje 2 god.)."""
-    do_g = datetime.date.today().year - 1
-    od_g = do_g - 1
+def klima_dnevno(lat, lon, mjesec, dan):
+    """Dnevni hod temperature za TOČAN datum (mjesec/dan), prošle godine.
+    24 vrijednosti — kakvo je vrijeme bilo na taj dan lani."""
+    g = datetime.date.today().year - 1
+    datum = f"{g}-{mjesec:02d}-{dan:02d}"
     url = "https://archive-api.open-meteo.com/v1/archive?" + urllib.parse.urlencode({
         "latitude": lat, "longitude": lon,
-        "start_date": f"{od_g}-01-01", "end_date": f"{do_g}-12-31",
+        "start_date": datum, "end_date": datum,
         "hourly": "temperature_2m", "timezone": "auto"})
-    with urllib.request.urlopen(url, timeout=60) as r:
+    with urllib.request.urlopen(url, timeout=20) as r:
         h = json.load(r)["hourly"]
-    df = pd.DataFrame({"v": pd.to_datetime(h["time"]),
-                       "t": h["temperature_2m"]}).dropna()
-    po_satu = df.groupby(df["v"].dt.hour)["t"].mean()
-    return [round(float(po_satu.get(s, np.nan)), 1) for s in range(24)]
+    return [round(float(t), 1) if t is not None else np.nan
+            for t in h["temperature_2m"]]
 
 
 # ---------------------------------------------------------------- racun
@@ -123,7 +122,8 @@ def klima_lokacije(loc):
     try:
         with st.spinner("Dohvaćam klimu…"):
             mj = klima_mjesecno(loc["lat"], loc["lon"])
-            dn = klima_dnevno(loc["lat"], loc["lon"])
+            danas = datetime.date.today()
+            dn = klima_dnevno(loc["lat"], loc["lon"], danas.month, danas.day)
         if not np.isnan(np.array(mj, dtype=float)).any():
             return {"ime": loc["ime"], "mjesecne": mj, "dnevne": dn}
     except Exception as e:
@@ -221,8 +221,9 @@ if hint is not None and hint != terarij["pomak"]:
 tab_dan, tab_god = st.tabs(["📈 Dnevna krivulja (24 h)", "📅 Godišnja krivulja (12 mj)"])
 
 with tab_dan:
-    st.markdown("**Prosječni dnevni hod temperature** (vanjski zrak).")
-    st.caption(f"📅 {datetime.date.today().strftime('%d.%m.%Y.')}")
+    st.markdown("**Dnevni hod temperature za današnji datum** (vanjski zrak).")
+    god_lani = datetime.date.today().year - 1
+    st.caption(f"📅 {datetime.date.today().strftime('%d.%m.')}{god_lani}. (prošla godina)")
     base = pd.Timestamp("2024-01-01")
     vrijeme = [base + pd.Timedelta(hours=h) for h in range(24)] + \
               [base + pd.Timedelta(hours=23, minutes=59)]
