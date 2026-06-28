@@ -222,6 +222,7 @@ tab_dan, tab_god = st.tabs(["📈 Dnevna krivulja (24 h)", "📅 Godišnja krivu
 
 with tab_dan:
     st.markdown("**Prosječni dnevni hod temperature** (vanjski zrak).")
+    st.caption(f"📅 {datetime.date.today().strftime('%d.%m.%Y.')}")
     base = pd.Timestamp("2024-01-01")
     vrijeme = [base + pd.Timedelta(hours=h) for h in range(24)] + \
               [base + pd.Timedelta(hours=23, minutes=59)]
