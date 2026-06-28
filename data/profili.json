@@ -11,6 +11,7 @@
     {
       "vrsta": "Morelia viridis",
       "lokalitet": "Biak",
+      "lokalitet_grad": "Biak",
       "geo_sirina": -1.18,
       "tip_okidaca": "ekvatorski",
       "fotoperiod_min_h": 12.0,
@@ -27,6 +28,7 @@
     {
       "vrsta": "Morelia spilota spilota",
       "lokalitet": "Diamond (Sydney)",
+      "lokalitet_grad": "Sydney",
       "geo_sirina": -33.9,
       "tip_okidaca": "umjereni",
       "fotoperiod_min_h": 9.9,
